@@ -3,7 +3,7 @@
 # ==========================================
 # KONFIGURACJA WERSJI I REPOZYTORIUM
 # ==========================================
-CURRENT_VERSION="1.0.3"
+CURRENT_VERSION="1.1.0"
 
 GITHUB_USER="Wojtekadamski"
 GITHUB_REPO="net-master"
@@ -23,7 +23,8 @@ NC='\033[0m'
 # AUTO-INSTALACJA ZALEŻNOŚCI
 # ==========================================
 check_dependencies() {
-    local deps=("ip" "ping" "traceroute" "dig" "curl" "speedtest-cli" "nmcli" "awk" "nmap")
+    # Dodano 'nc' (netcat) do sprawdzania portów
+    local deps=("ip" "ping" "traceroute" "dig" "curl" "speedtest-cli" "nmcli" "awk" "nmap" "nc")
     local packages_to_install=()
 
     for dep in "${deps[@]}"; do
@@ -33,6 +34,7 @@ check_dependencies() {
                 "ping") packages_to_install+=("iputils-ping") ;;
                 "dig") packages_to_install+=("dnsutils") ;;
                 "nmcli") packages_to_install+=("network-manager") ;;
+                "nc") packages_to_install+=("netcat-openbsd") ;;
                 *) packages_to_install+=("$dep") ;;
             esac
         fi
@@ -167,8 +169,6 @@ wifi_diag() {
 lan_scan() {
     clear
     echo -e "${CYAN}=== SKANER SIECI LOKALNEJ (LAN) ===${NC}"
-    
-    # Automatyczne pobranie aktualnej podsieci
     SUBNET=$(ip -o -f inet addr show | awk '/scope global/ {print $4}' | head -n 1)
     
     if [ -z "$SUBNET" ]; then
@@ -177,27 +177,21 @@ lan_scan() {
         echo -e "Wykryta podsieć: ${YELLOW}$SUBNET${NC}"
         echo "Skanowanie urządzeń podłączonych do Twojego routera (to potrwa kilka sekund)..."
         
-        # Ping sweep w tle za pomocą nmap
         nmap -T4 -sn "$SUBNET" > /dev/null 2>&1
         
         echo -e "\n${CYAN}IP ADDRESS${NC}      | ${CYAN}MAC ADDRESS${NC}       | ${CYAN}HOSTNAME (Nazwa urządzenia)${NC}"
         echo "------------------------------------------------------------------------"
         
-        # POPRAWKA: grep "lladdr" przepuszcza tylko żywe urządzenia, które zwróciły adres MAC
         ip neigh show | grep "lladdr" | awk '{print $1, $5}' | sort -t . -k 4,4n | while read -r IP MAC; do
-            # Próba tłumaczenia IP na nazwę (jeśli DNS/router ją udostępnia)
             HOSTNAME=$(dig +short -x "$IP" 2>/dev/null | sed 's/\.$//')
             if [ -z "$HOSTNAME" ]; then HOSTNAME="[Nieznany / Brak nazwy]"; fi
-            
             printf "\033[1;32m%-15s\033[0m | %-17s | %s\n" "$IP" "$MAC" "$HOSTNAME"
         done
         
-        # Ostatnia linia to często IP samego interfejsu (naszego komputera)
         MY_IP=$(ip -o -4 addr list | awk '/scope global/ {print $4}' | cut -d/ -f1 | head -n 1)
         MY_MAC=$(ip link show | grep ether | awk '{print $2}' | head -n 1)
         printf "\033[1;34m%-15s\033[0m | %-17s | [Twój Komputer]\n" "$MY_IP" "${MY_MAC:-N/A}"
     fi
-    
     echo -en "\nWciśnij [Enter], aby wrócić..."
     read -r
 }
@@ -207,27 +201,18 @@ http_profiler() {
     echo -e "${CYAN}=== PROFILER ZAPYTAŃ HTTP (TTFB) ===${NC}"
     read -r -p "Podaj adres URL lub domenę (np. google.com): " TARGET_URL
     
-    if [ -z "$TARGET_URL" ]; then
-        TARGET_URL="https://google.com"
-    fi
-    
-    if [[ ! "$TARGET_URL" =~ ^https?:// ]]; then
-        TARGET_URL="https://$TARGET_URL"
-    fi
+    if [ -z "$TARGET_URL" ]; then TARGET_URL="https://google.com"; fi
+    if [[ ! "$TARGET_URL" =~ ^https?:// ]]; then TARGET_URL="https://$TARGET_URL"; fi
     
     echo -e "\nNawiązywanie połączenia z: ${YELLOW}$TARGET_URL${NC}...\n"
     
-    # Format wyjściowy pobierający konkretne fazy łączenia
     FORMAT="%{time_namelookup}\n%{time_connect}\n%{time_appconnect}\n%{time_pretransfer}\n%{time_starttransfer}\n%{time_total}\n%{http_code}"
-    
     RESULT=$(curl -o /dev/null -s -w "$FORMAT" "$TARGET_URL")
     
     if [ -z "$RESULT" ]; then
         echo -e "${RED}Błąd połączenia. Upewnij się, że adres jest poprawny.${NC}"
     else
         mapfile -t METRICS <<< "$RESULT"
-        
-        # Matematyka bez polegania na zewnętrznym pakiecie bc, przy użyciu awka
         DNS=$(echo "${METRICS[0]}" | awk '{printf "%.0f", $1 * 1000}')
         TCP=$(echo "${METRICS[0]} ${METRICS[1]}" | awk '{printf "%.0f", ($2 - $1) * 1000}')
         TLS=$(echo "${METRICS[1]} ${METRICS[2]}" | awk '{printf "%.0f", ($2 - $1) * 1000}')
@@ -247,6 +232,99 @@ http_profiler() {
             echo -e "Czas do pierwszego bajtu (TTFB):       ${YELLOW}${TTFB} ms${NC}"
             echo -e "================================================="
             echo -e "Całkowity czas odpowiedzi:             ${GREEN}${TOTAL} ms${NC}"
+        fi
+    fi
+    echo -en "\nWciśnij [Enter], aby wrócić..."
+    read -r
+}
+
+port_scanner() {
+    clear
+    echo -e "${CYAN}=== SKANER PORTÓW TCP ===${NC}"
+    read -r -p "Podaj adres IP lub domenę serwera do skanowania (domyślnie localhost): " TARGET
+    TARGET=${TARGET:-127.0.0.1}
+    
+    echo -e "\nSkanowanie najpopularniejszych portów na hoście: ${YELLOW}$TARGET${NC}...\n"
+    
+    # Lista popularnych portów (FTP, SSH, SMTP, DNS, HTTP, POP3, IMAP, HTTPS, MySQL, RDP, HTTP-ALT)
+    PORTS=(21 22 25 53 80 110 143 443 3306 3389 8080)
+    
+    printf "${CYAN}%-6s | %-15s | %s${NC}\n" "PORT" "USŁUGA (Typ)" "STATUS"
+    echo "----------------------------------------------------"
+    
+    for PORT in "${PORTS[@]}"; do
+        # Opcja -z to tryb skanowania, -w 1 to timeout 1 sekunda
+        if nc -z -w 1 "$TARGET" "$PORT" 2>/dev/null; then
+            # Próba odczytania nazwy usługi z /etc/services
+            SERVICE=$(awk -v p="$PORT/tcp" '$2 == p {print $1; exit}' /etc/services)
+            SERVICE=${SERVICE:-Nieznana}
+            printf "\033[1;32m%-6s\033[0m | %-15s | \033[1;32m[+] OTWARTY\033[0m\n" "$PORT" "$SERVICE"
+        else
+            SERVICE=$(awk -v p="$PORT/tcp" '$2 == p {print $1; exit}' /etc/services)
+            SERVICE=${SERVICE:-Nieznana}
+            printf "\033[1;31m%-6s\033[0m | %-15s | \033[1;31m[-] ZAMKNIĘTY\033[0m\n" "$PORT" "$SERVICE"
+        fi
+    done
+    
+    echo -en "\nWciśnij [Enter], aby wrócić..."
+    read -r
+}
+
+stability_monitor() {
+    clear
+    echo -e "${CYAN}=== MONITOR STABILNOŚCI I JITTERA ===${NC}"
+    echo "Narzędzie wysyła 20 pakietów kontrolnych, aby sprawdzić "
+    echo "mikro-przerwy i wahania pingów (Jitter) psujące jakość połączenia."
+    echo ""
+    
+    TARGET="8.8.8.8"
+    echo -e "Testowanie połączenia z ${YELLOW}$TARGET${NC}...\n"
+    
+    # Wysyłamy 20 pakietów w odstępach 0.5s dla szybszego wyniku
+    PING_OUT=$(ping -c 20 -i 0.5 -q "$TARGET" 2>&1)
+    
+    LOSS=$(echo "$PING_OUT" | grep -oP '\d+(?=% packet loss)')
+    STATS=$(echo "$PING_OUT" | grep -oP 'rtt min/avg/max/mdev = \K.*' | tr '/' ' ')
+    
+    if [ -n "$STATS" ]; then
+        read -r MIN AVG MAX MDEV <<< "$STATS"
+        echo -e "Wysłano pakietów:       ${CYAN}20${NC}"
+        
+        if [ "$LOSS" -eq 0 ]; then
+            echo -e "Utrata pakietów:        ${GREEN}0%${NC}"
+        else
+            echo -e "Utrata pakietów:        ${RED}${LOSS}%${NC}"
+        fi
+        
+        echo -e "Minimalne opóźnienie:   ${CYAN}${MIN} ms${NC}"
+        echo -e "Średnie opóźnienie:     ${CYAN}${AVG} ms${NC}"
+        echo -e "Maksymalne opóźnienie:  ${YELLOW}${MAX} ms${NC}"
+        echo -e "Jitter (Odchylenie):    ${YELLOW}${MDEV} ms${NC}\n"
+        
+        echo -e "${CYAN}--- WERDYKT ---${NC}"
+        
+        # Logika werdyktu - sprawdzamy Jitter > 10ms
+        IS_HIGH_JITTER=$(awk -v m="$MDEV" 'BEGIN{if(m>10.0) print 1; else print 0}')
+        
+        if [ "$LOSS" -gt 0 ]; then
+            echo -e "${RED}[!] Wykryto utratę pakietów.${NC} Łącze gubi dane. Możliwy problem z sygnałem Wi-Fi lub po stronie operatora."
+        elif [ "$IS_HIGH_JITTER" -eq 1 ]; then
+            echo -e "${YELLOW}[!] Wysoki Jitter ($MDEV ms).${NC} Opóźnienia 'skaczą'. Będziesz odczuwać lagi w grach i ścinanie obrazu na spotkaniach."
+        else
+            echo -e "${GREEN}[+] Połączenie jest wzorowe.${NC} Brak utraty pakietów, niski jitter. Sieć działa stabilnie."
+        fi
+    else
+        echo -e "${RED}Błąd: Nie można ukończyć testu. Brak połączenia z internetem.${NC}"
+    fi
+    
+    echo -e "\n${YELLOW}--- OPCJE NAPRAWCZE ---${NC}"
+    read -r -p "Czy chcesz zresetować interfejs sieciowy i wymusić nowe IP (DHCP Renew)? [t/N]: " RESTART_CHOICE
+    if [[ "$RESTART_CHOICE" =~ ^[TtYy]$ ]]; then
+        echo -e "\n${CYAN}Wymagane uprawnienia administratora do restartu usługi NetworkManager...${NC}"
+        if sudo systemctl restart NetworkManager; then
+            echo -e "${GREEN}Zresetowano kartę sieciową.${NC} Poczekaj kilka sekund na ponowne nawiązanie połączenia."
+        else
+            echo -e "${RED}Nie udało się zresetować sieci.${NC}"
         fi
     fi
     
@@ -336,16 +414,18 @@ while true; do
     echo -e "${CYAN}     NET-MASTER - DIAGNOSTYKA SIECI (v$CURRENT_VERSION)    ${NC}"
     echo -e "${BLUE}==============================================${NC}"
     echo "1. Pokaż interfejsy sieciowe i stan połączenia"
-    echo "2. Pełna diagnostyka (DHCP, Brama, DNS, Traceroute)"
+    echo "2. Pełna diagnostyka (Brama, DNS, Traceroute)"
     echo "3. Skaner Wi-Fi i optymalizacja kanałów"
     echo "4. Skaner LAN (Kto jest w mojej sieci?)"
     echo "5. Profiler zapytań HTTP (Czas ładowania)"
-    echo "6. Pomiar prędkości łącza (Speedtest)"
-    echo "7. Sprawdź aktualizacje (Update)"
+    echo "6. Skaner Otwartych Portów TCP"
+    echo "7. Monitor Stabilności i Jittera (+ Reset DHCP)"
+    echo "8. Pomiar prędkości łącza (Speedtest)"
+    echo "9. Sprawdź aktualizacje (Update)"
     echo "0. Zakończ program"
     echo -e "${BLUE}==============================================${NC}"
     
-    read -r -p "Wybierz opcję [0-7]: " choice
+    read -r -p "Wybierz opcję [0-9]: " choice
     
     case $choice in
         1) show_interfaces ;;
@@ -353,8 +433,10 @@ while true; do
         3) wifi_diag ;;
         4) lan_scan ;;
         5) http_profiler ;;
-        6) speed_test ;;
-        7) check_update ;;
+        6) port_scanner ;;
+        7) stability_monitor ;;
+        8) speed_test ;;
+        9) check_update ;;
         0) echo "Zakończono."; exit 0 ;;
         *) echo -e "${RED}Nieprawidłowy wybór!${NC}"; sleep 1 ;;
     esac

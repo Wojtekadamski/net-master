@@ -1,2 +1,5 @@
-Wersja 1.0.3 (Ostatnia aktualizacja):
+Wersja 1.1.0: 
+- Dodano skaner portów TCP, monitor Jittera oraz opcję twardego resetu sieci"
+
+Wersja 1.0.3:
 - uporządkowano wyświetlanie urządzeń <w sieci LAN
