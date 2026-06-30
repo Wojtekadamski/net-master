@@ -1,4 +1,2 @@
-Wersja 1.1.0 (Ostatnia aktualizacja):
-- Dodano funkcję samoczynnej aktualizacji.
-- Usprawniono logowanie błędów przy testach DNS.
-- Skrócono czas oczekiwania na ping.
+Wersja 1.0.1 (Ostatnia aktualizacja):
+- Naprawiono błąd parsowania adresów MAC w skanerze Wi-Fi

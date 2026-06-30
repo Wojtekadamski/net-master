@@ -3,7 +3,7 @@
 # ==========================================
 # KONFIGURACJA WERSJI I REPOZYTORIUM
 # ==========================================
-CURRENT_VERSION="1.0.0"
+CURRENT_VERSION="1.0.1"
 
 # ZMIEŃ PONIŻSZE DANE NA SWOJE
 GITHUB_USER="Wojtekadamski"
@@ -121,27 +121,36 @@ wifi_diag() {
     sleep 3
     
     TEMP_SCAN="/tmp/wifi_scan_cli.txt"
-    nmcli -t -f BSSID,SSID,CHAN,SIGNAL,FREQ dev wifi list > "$TEMP_SCAN"
+    
+    # POPRAWKA 1: Nowa kolejność (FREQ, CHAN, SIGNAL, SSID). Brak adresu BSSID psującego kolumny.
+    nmcli -t -f FREQ,CHAN,SIGNAL,SSID dev wifi list > "$TEMP_SCAN"
 
     if [ ! -s "$TEMP_SCAN" ]; then
         echo -e "${RED}Błąd: Nie wykryto sieci Wi-Fi. Upewnij się, że masz włączoną kartę bezprzewodową.${NC}"
         rm -f "$TEMP_SCAN"
-        echo -e "\nWciśnij [Enter], aby wrócić..."
+        echo -en "\nWciśnij [Enter], aby wrócić..."
         read -r
         return
     fi
 
     echo -e "\n${YELLOW}--- SIECI 2.4 GHz ---${NC}"
-    awk -F':' '$5 < 3000 {printf "Kanał: %-3s | Moc: %-3s%% | Sieć: %s\n", $3, $4, $2}' "$TEMP_SCAN" | sort -k2 -nr | head -n 10
+    # POPRAWKA 2: Nowe indeksowanie w AWK, uwzględniające SSIDs z dwukropkami
+    awk -F':' '$1 < 3000 {
+        ssid=$4; for(i=5;i<=NF;i++) ssid=ssid":"$i; 
+        printf "Kanał: %-3s | Moc: %-3s%% | Sieć: %s\n", $2, $3, ssid
+    }' "$TEMP_SCAN" | sort -k2 -nr | head -n 10
     
     echo -e "\n${YELLOW}--- SIECI 5 GHz ---${NC}"
-    awk -F':' '$5 > 5000 {printf "Kanał: %-4s | Moc: %-3s%% | Sieć: %s\n", $3, $4, $2}' "$TEMP_SCAN" | sort -k2 -nr | head -n 10
+    awk -F':' '$1 > 5000 {
+        ssid=$4; for(i=5;i<=NF;i++) ssid=ssid":"$i; 
+        printf "Kanał: %-4s | Moc: %-3s%% | Sieć: %s\n", $2, $3, ssid
+    }' "$TEMP_SCAN" | sort -k2 -nr | head -n 10
 
     echo -e "\n${CYAN}--- REKOMENDACJE ---${NC}"
     
-    C1=$(awk -F':' '$5 < 3000 && ($3>=1 && $3<=3) {count++} END {print count+0}' "$TEMP_SCAN")
-    C6=$(awk -F':' '$5 < 3000 && ($3>=4 && $3<=8) {count++} END {print count+0}' "$TEMP_SCAN")
-    C11=$(awk -F':' '$5 < 3000 && ($3>=9 && $3<=14) {count++} END {print count+0}' "$TEMP_SCAN")
+    C1=$(awk -F':' '$1 < 3000 && ($2>=1 && $2<=3) {count++} END {print count+0}' "$TEMP_SCAN")
+    C6=$(awk -F':' '$1 < 3000 && ($2>=4 && $2<=8) {count++} END {print count+0}' "$TEMP_SCAN")
+    C11=$(awk -F':' '$1 < 3000 && ($2>=9 && $2<=14) {count++} END {print count+0}' "$TEMP_SCAN")
 
     MIN_C="1"
     MIN_VAL=$C1
@@ -150,12 +159,13 @@ wifi_diag() {
 
     echo -e "Rekomendowany kanał dla ${YELLOW}2.4 GHz${NC}: ${GREEN}Kanał $MIN_C${NC} (najmniejsze zagęszczenie w tej strefie)."
     
-    echo -n "Zajęte kanały ${YELLOW}5 GHz${NC} w okolicy: "
-    awk -F':' '$5 > 5000 {print $3}' "$TEMP_SCAN" | sort -nu | xargs | sed 's/ /, /g' | awk '{print "\033[1;31m" $0 "\033[0m"}'
-    echo -e "Rekomendacja dla 5 GHz: Wybierz w routerze dowolny kanał, którego ${RED}NIE MA${NC} na liście powyżej."
+    # POPRAWKA 3: Zmiana 'echo -n' na 'echo -ne', aby kolory (ANSI escapes) renderowały się poprawnie
+    echo -ne "Zajęte kanały ${YELLOW}5 GHz${NC} w okolicy: "
+    awk -F':' '$1 > 5000 {print $2}' "$TEMP_SCAN" | sort -nu | xargs | sed 's/ /, /g' | awk '{print "\033[1;31m" $0 "\033[0m"}'
+    echo -e "Rekomendacja dla 5 GHz: Wybierz w routerze dowolny kanał, którego ${RED}NIE MA${NC} na liście powyżej (np. z zakresu DFS 52-140)."
 
     rm -f "$TEMP_SCAN"
-    echo -e "\nWciśnij [Enter], aby wrócić..."
+    echo -en "\nWciśnij [Enter], aby wrócić..."
     read -r
 }
 
