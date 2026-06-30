@@ -260,6 +260,21 @@ function Check-Update {
             $RemoteVersion = $RemoteVersionMatch.Groups[1].Value
             if ($CURRENT_VERSION -ne $RemoteVersion) {
                 Write-Host ("`nZnaleziono nowa wersje: {0}!" -f $RemoteVersion) -ForegroundColor Green
+                
+                # === POBIERANIE I WYSWIETLANIE CHANGELOGU ===
+                $ChangelogUrl = "https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$BRANCH/changelog-win.txt"
+                try {
+                    $Changelog = Invoke-RestMethod -Uri $ChangelogUrl -UseBasicParsing -ErrorAction SilentlyContinue
+                    if (-not [string]::IsNullOrWhiteSpace($Changelog)) {
+                        Write-Host "`n--- CO NOWEGO? ---" -ForegroundColor Cyan
+                        Write-Host $Changelog
+                        Write-Host "------------------`n" -ForegroundColor Cyan
+                    }
+                } catch { 
+                    # Ignorujemy blad, jesli plik changelogu jeszcze nie istnieje
+                }
+                # ============================================
+
                 $Choice = Read-Host "Czy chcesz zainstalowac aktualizacje teraz? [T/n]"
                 if ($Choice -match "^[TtYy]$" -or [string]::IsNullOrWhiteSpace($Choice)) {
                     $ScriptPath = $MyInvocation.MyCommand.Path
