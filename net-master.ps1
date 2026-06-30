@@ -1,7 +1,7 @@
 # ==========================================
 # NET-MASTER WINDOWS EDITION
 # ==========================================
-$CURRENT_VERSION = "1.0.0" # Startujemy od 1.0.0 dla wersji Windows
+$CURRENT_VERSION = "1.0.0"
 $GITHUB_USER = "Wojtekadamski"
 $GITHUB_REPO = "net-master"
 $BRANCH = "main"
@@ -10,7 +10,7 @@ $BRANCH = "main"
 # FUNKCJE POMOCNICZE
 # ==========================================
 function Pause-Script {
-    Write-Host "`nWciśnij [Enter], aby wrócić..." -ForegroundColor DarkGray
+    Write-Host "`nWcisnij [Enter], aby wrocic..." -ForegroundColor DarkGray
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
@@ -24,7 +24,7 @@ function Check-Admin {
 # ==========================================
 function Show-Interfaces {
     Clear-Host
-    Write-Host "=== INTERFEJSY SIECIOWE I STAN POŁĄCZEŃ ===" -ForegroundColor Cyan
+    Write-Host "=== INTERFEJSY SIECIOWE I STAN POLACZEN ===" -ForegroundColor Cyan
     Get-NetAdapter | Where-Object Status -eq "Up" | Select-Object Name, InterfaceDescription, LinkSpeed | Format-Table -AutoSize
     Write-Host "`nAdresy IP:" -ForegroundColor Yellow
     Get-NetIPAddress -AddressFamily IPv4 | Where-Object InterfaceAlias -notmatch "Loopback" | Select-Object InterfaceAlias, IPAddress | Format-Table -AutoSize
@@ -34,11 +34,11 @@ function Show-Interfaces {
 function Scan-Lan {
     Clear-Host
     Write-Host "=== SKANER SIECI LOKALNEJ (LAN) ===" -ForegroundColor Cyan
-    Write-Host "Skanowanie pamięci podręcznej ARP (urządzenia w Twojej podsieci)...`n" -ForegroundColor Yellow
+    Write-Host "Skanowanie pamieci podrecznej ARP (urzadzenia w Twojej podsieci)...`n" -ForegroundColor Yellow
     
     $Neighbors = Get-NetNeighbor -AddressFamily IPv4 | Where-Object State -ne "Unreachable" | Where-Object LinkLayerAddress -ne "00-00-00-00-00-00"
     
-    Write-Host "$('IP ADDRESS'.PadRight(15)) | $('MAC ADDRESS'.PadRight(17)) | HOSTNAME" -ForegroundColor Cyan
+    Write-Host ('{0,-15} | {1,-17} | HOSTNAME' -f 'IP ADDRESS', 'MAC ADDRESS') -ForegroundColor Cyan
     Write-Host "-----------------------------------------------------------------"
     
     foreach ($Node in $Neighbors) {
@@ -49,8 +49,8 @@ function Scan-Lan {
         } catch {
             $HostName = "[Brak nazwy]"
         }
-        Write-Host "$($IP.PadRight(15)) " -ForegroundColor Green -NoNewline
-        Write-Host "| $($MAC.PadRight(17)) | $HostName"
+        Write-Host ('{0,-15} ' -f $IP) -ForegroundColor Green -NoNewline
+        Write-Host ('| {0,-17} | {1}' -f $MAC, $HostName)
     }
     Pause-Script
 }
@@ -60,10 +60,9 @@ function Scan-Wifi {
     Write-Host "=== SKANER WI-FI ===" -ForegroundColor Cyan
     Write-Host "Pobieranie listy sieci z okolicy...`n" -ForegroundColor Yellow
     
-    # Wykorzystanie natywnego netsh
     netsh wlan show networks mode=bssid | Select-String "SSID|Sygnał|Kanał|BSSID"
     
-    Write-Host "`nWskazówka: Aby zoptymalizować 2.4 GHz, wybieraj kanały 1, 6 lub 11." -ForegroundColor Yellow
+    Write-Host "`nWskazowka: Aby zoptymalizowac 2.4 GHz, wybieraj kanaly 1, 6 lub 11." -ForegroundColor Yellow
     Pause-Script
 }
 
@@ -75,30 +74,30 @@ function Basic-Diag {
     Write-Host "=== PODSTAWOWA DIAGNOSTYKA ===" -ForegroundColor Cyan
     
     $Gateway = (Get-NetRoute -DestinationPrefix "0.0.0.0/0" | Sort-Object RouteMetric | Select-Object -First 1).NextHop
-    Write-Host "[+] Brama domyślna (Router): $Gateway" -ForegroundColor Green
+    Write-Host ('[+] Brama domyslna (Router): {0}' -f $Gateway) -ForegroundColor Green
     
-    Write-Host "`n[+] Test połączenia z Internetem (Ping 8.8.8.8)..." -ForegroundColor Yellow
+    Write-Host "`n[+] Test polaczenia z Internetem (Ping 8.8.8.8)..." -ForegroundColor Yellow
     $Ping = Test-Connection -ComputerName 8.8.8.8 -Count 4 -ErrorAction SilentlyContinue
     if ($Ping) {
-        Write-Host "    Internet działa poprawnie." -ForegroundColor Green
+        Write-Host "    Internet dziala poprawnie." -ForegroundColor Green
     } else {
-        Write-Host "    Brak dostępu do internetu!" -ForegroundColor Red
+        Write-Host "    Brak dostepu do internetu!" -ForegroundColor Red
     }
 
-    Write-Host "`n[+] Test rozwiązywania DNS (google.com)..." -ForegroundColor Yellow
+    Write-Host "`n[+] Test rozwiazywania DNS (google.com)..." -ForegroundColor Yellow
     try {
         $dns = Resolve-DnsName google.com -ErrorAction Stop
-        Write-Host "    DNS działa. Pomyślnie rozwiązano domenę." -ForegroundColor Green
+        Write-Host "    DNS dziala. Pomyslnie rozwiazano domene." -ForegroundColor Green
     } catch {
-        Write-Host "    Błąd serwera DNS." -ForegroundColor Red
+        Write-Host "    Blad serwera DNS." -ForegroundColor Red
     }
     Pause-Script
 }
 
 function Stability-Monitor {
     Clear-Host
-    Write-Host "=== MONITOR STABILNOŚCI I JITTERA ===" -ForegroundColor Cyan
-    Write-Host "Testowanie połączenia z 8.8.8.8 (20 pakietów)...`n" -ForegroundColor Yellow
+    Write-Host "=== MONITOR STABILNOSCI I JITTERA ===" -ForegroundColor Cyan
+    Write-Host "Testowanie polaczenia z 8.8.8.8 (20 pakietow)...`n" -ForegroundColor Yellow
     
     $Results = Test-Connection -ComputerName 8.8.8.8 -Count 20 -ErrorAction SilentlyContinue
     if ($Results) {
@@ -107,31 +106,31 @@ function Stability-Monitor {
         $Max = ($Times | Measure-Object -Maximum).Maximum
         $Avg = [math]::Round(($Times | Measure-Object -Average).Average, 2)
         
-        Write-Host "Wysłano pakietów:      20" -ForegroundColor Cyan
-        Write-Host "Odebrano:              $($Results.Count)" -ForegroundColor Green
-        Write-Host "Minimalne opóźnienie:  $Min ms" -ForegroundColor Cyan
-        Write-Host "Średnie opóźnienie:    $Avg ms" -ForegroundColor Cyan
-        Write-Host "Maksymalne opóźnienie: $Max ms" -ForegroundColor Yellow
-        Write-Host "Różnica (Jitter ok.):  $($Max - $Min) ms" -ForegroundColor Yellow
+        Write-Host "Wyslano pakietow:      20" -ForegroundColor Cyan
+        Write-Host ('Odebrano:              {0}' -f $Results.Count) -ForegroundColor Green
+        Write-Host ('Minimalne opoznienie:  {0} ms' -f $Min) -ForegroundColor Cyan
+        Write-Host ('Srednie opoznienie:    {0} ms' -f $Avg) -ForegroundColor Cyan
+        Write-Host ('Maksymalne opoznienie: {0} ms' -f $Max) -ForegroundColor Yellow
+        Write-Host ('Roznica (Jitter ok.):  {0} ms' -f ($Max - $Min)) -ForegroundColor Yellow
     } else {
-        Write-Host "Brak połączenia z siecią." -ForegroundColor Red
+        Write-Host "Brak polaczenia z siecia." -ForegroundColor Red
     }
     
-    $Renew = Read-Host "`nCzy chcesz wymusić odnowienie IP od routera (ipconfig /renew)? [t/N]"
+    $Renew = Read-Host "`nCzy chcesz wymusic odnowienie IP od routera (ipconfig /renew)? [t/N]"
     if ($Renew -match "^[TtYy]$") {
         ipconfig /renew | Out-Null
-        Write-Host "Zresetowano kartę sieciową." -ForegroundColor Green
+        Write-Host "Zresetowano karte sieciowa." -ForegroundColor Green
     }
     Pause-Script
 }
 
 function Speed-Test {
     Clear-Host
-    Write-Host "=== POMIAR PRĘDKOŚCI ŁĄCZA ===" -ForegroundColor Cyan
-    Write-Host "Instalowanie/Uruchamianie modułu Ookla Speedtest...`n" -ForegroundColor Yellow
+    Write-Host "=== POMIAR PREDKOSCI LACZA ===" -ForegroundColor Cyan
+    Write-Host "Instalowanie/Uruchamianie modulu Ookla Speedtest...`n" -ForegroundColor Yellow
     
     if (-not (Get-Command "speedtest.exe" -ErrorAction SilentlyContinue)) {
-        Write-Host "Brak speedtest-cli. Zainstaluj go za pomocą: winget install Ookla.Speedtest.CLI" -ForegroundColor Red
+        Write-Host "Brak speedtest-cli. Zainstaluj go za pomoca: winget install Ookla.Speedtest.CLI" -ForegroundColor Red
     } else {
         speedtest.exe
     }
@@ -147,31 +146,31 @@ function GeoIP-Scanner {
     try {
         $Info = Invoke-RestMethod -Uri "http://ip-api.com/json/"
         Write-Host "`nTwoje Publiczne IP: " -NoNewline; Write-Host $Info.query -ForegroundColor Green
-        Write-Host "Kraj:               $($Info.country)" -ForegroundColor Cyan
-        Write-Host "Miasto:             $($Info.city)" -ForegroundColor Cyan
-        Write-Host "Dostawca ISP:       $($Info.isp)" -ForegroundColor Green
-        Write-Host "Organizacja (ASN):  $($Info.as)" -ForegroundColor Cyan
+        Write-Host ('Kraj:               {0}' -f $Info.country) -ForegroundColor Cyan
+        Write-Host ('Miasto:             {0}' -f $Info.city) -ForegroundColor Cyan
+        Write-Host ('Dostawca ISP:       {0}' -f $Info.isp) -ForegroundColor Green
+        Write-Host ('Organizacja (ASN):  {0}' -f $Info.as) -ForegroundColor Cyan
     } catch {
-        Write-Host "Błąd pobierania danych." -ForegroundColor Red
+        Write-Host "Blad pobierania danych." -ForegroundColor Red
     }
     Pause-Script
 }
 
 function Port-Scanner {
     Clear-Host
-    Write-Host "=== SKANER PORTÓW TCP ===" -ForegroundColor Cyan
-    $Target = Read-Host "Podaj adres IP / domenę (domyślnie localhost)"
+    Write-Host "=== SKANER PORTOW TCP ===" -ForegroundColor Cyan
+    $Target = Read-Host "Podaj adres IP / domene (domyslnie localhost)"
     if ([string]::IsNullOrWhiteSpace($Target)) { $Target = "127.0.0.1" }
     
     $Ports = @(21, 22, 25, 53, 80, 110, 143, 443, 3306, 3389, 8080)
-    Write-Host "`nSkanowanie hosta: $Target`n" -ForegroundColor Yellow
+    Write-Host ("`nSkanowanie hosta: {0}`n" -f $Target) -ForegroundColor Yellow
     
     foreach ($Port in $Ports) {
         $Test = Test-NetConnection -ComputerName $Target -Port $Port -WarningAction SilentlyContinue
         if ($Test.TcpTestSucceeded) {
-            Write-Host "PORT $Port `t | [+] OTWARTY" -ForegroundColor Green
+            Write-Host ('PORT {0,-5} | [+] OTWARTY' -f $Port) -ForegroundColor Green
         } else {
-            Write-Host "PORT $Port `t | [-] ZAMKNIĘTY" -ForegroundColor Red
+            Write-Host ('PORT {0,-5} | [-] ZAMKNIETY' -f $Port) -ForegroundColor Red
         }
     }
     Pause-Script
@@ -179,8 +178,8 @@ function Port-Scanner {
 
 function SSL-Verifier {
     Clear-Host
-    Write-Host "=== WERYFIKATOR CERTYFIKATÓW SSL/TLS ===" -ForegroundColor Cyan
-    $Domain = Read-Host "Podaj domenę (np. google.com)"
+    Write-Host "=== WERYFIKATOR CERTYFIKATOW SSL/TLS ===" -ForegroundColor Cyan
+    $Domain = Read-Host "Podaj domene (np. google.com)"
     if ([string]::IsNullOrWhiteSpace($Domain)) { return }
     $Domain = $Domain.Replace("https://", "").Replace("http://", "").Split('/')[0]
 
@@ -193,19 +192,19 @@ function SSL-Verifier {
         $ExpDate = [datetime]$Cert.GetExpirationDateString()
         $DaysLeft = ($ExpDate - (Get-Date)).Days
 
-        Write-Host "`nWystawca certyfikatu: $($Cert.Issuer)" -ForegroundColor Cyan
-        Write-Host "Data wygaśnięcia:     $ExpDate" -ForegroundColor Cyan
+        Write-Host ('`nWystawca certyfikatu: {0}' -f $Cert.Issuer) -ForegroundColor Cyan
+        Write-Host ('Data wygasniecia:     {0}' -f $ExpDate) -ForegroundColor Cyan
         
         if ($DaysLeft -lt 0) {
-            Write-Host "Status:               WYGASŁ! ❌" -ForegroundColor Red
+            Write-Host "Status:               WYGASL! [X]" -ForegroundColor Red
         } elseif ($DaysLeft -le 14) {
-            Write-Host "Status:               Wygasa za $DaysLeft dni ⚠️" -ForegroundColor Yellow
+            Write-Host ("Status:               Wygasa za {0} dni [!]" -f $DaysLeft) -ForegroundColor Yellow
         } else {
-            Write-Host "Status:               Ważny przez $DaysLeft dni ✅" -ForegroundColor Green
+            Write-Host ("Status:               Wazny przez {0} dni [V]" -f $DaysLeft) -ForegroundColor Green
         }
         $TcpClient.Close()
     } catch {
-        Write-Host "Błąd pobierania certyfikatu. Sprawdź domenę." -ForegroundColor Red
+        Write-Host "Blad pobierania certyfikatu. Sprawdz domene." -ForegroundColor Red
     }
     Pause-Script
 }
@@ -217,7 +216,7 @@ function Local-Sockets {
     Clear-Host
     Write-Host "=== AKTYWNE GNIAZDA I PROCESY (LISTEN) ===" -ForegroundColor Cyan
     if (-not (Check-Admin)) {
-        Write-Host "OSTRZEŻENIE: Brak uprawnień administratora. Nazwy procesów mogą być ukryte." -ForegroundColor Yellow
+        Write-Host "OSTRZEZENIE: Brak uprawnien administratora. Nazwy procesow moga byc ukryte." -ForegroundColor Yellow
     }
     Write-Host "LocalAddress:Port `t | PID `t | Nazwa Procesu" -ForegroundColor Cyan
     Write-Host "--------------------------------------------------------"
@@ -230,7 +229,7 @@ function Local-Sockets {
                 $ProcessName = (Get-Process -Id $Conn.OwningProcess -ErrorAction SilentlyContinue).ProcessName
             }
         } catch {}
-        Write-Host "$($Conn.LocalAddress):$($Conn.LocalPort) `t | $($Conn.OwningProcess) `t | $ProcessName" -ForegroundColor Green
+        Write-Host ('{0}:{1} `t | {2} `t | {3}' -f $Conn.LocalAddress, $Conn.LocalPort, $Conn.OwningProcess, $ProcessName) -ForegroundColor Green
     }
     Pause-Script
 }
@@ -249,7 +248,7 @@ function Firewall-Diag {
 function Check-Update {
     Clear-Host
     Write-Host "=== AKTUALIZACJA PROGRAMU ===" -ForegroundColor Cyan
-    Write-Host "Obecna wersja: $CURRENT_VERSION" -ForegroundColor Yellow
+    Write-Host ("Obecna wersja: {0}" -f $CURRENT_VERSION) -ForegroundColor Yellow
     
     $RawUrl = "https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$BRANCH/net-master.ps1"
     
@@ -260,21 +259,21 @@ function Check-Update {
         if ($RemoteVersionMatch.Success) {
             $RemoteVersion = $RemoteVersionMatch.Groups[1].Value
             if ($CURRENT_VERSION -ne $RemoteVersion) {
-                Write-Host "`nZnaleziono nową wersję: $RemoteVersion!" -ForegroundColor Green
-                $Choice = Read-Host "Czy chcesz zainstalować aktualizację teraz? [T/n]"
+                Write-Host ("`nZnaleziono nowa wersje: {0}!" -f $RemoteVersion) -ForegroundColor Green
+                $Choice = Read-Host "Czy chcesz zainstalowac aktualizacje teraz? [T/n]"
                 if ($Choice -match "^[TtYy]$" -or [string]::IsNullOrWhiteSpace($Choice)) {
                     $ScriptPath = $MyInvocation.MyCommand.Path
-                    $RemoteScript | Out-File -FilePath $ScriptPath -Encoding utf8
-                    Write-Host "Zaktualizowano pomyślnie! Uruchom program ponownie." -ForegroundColor Green
+                    $RemoteScript | Out-File -FilePath $ScriptPath -Encoding UTF8
+                    Write-Host "Zaktualizowano pomyslnie! Uruchom program ponownie." -ForegroundColor Green
                     Start-Sleep -Seconds 2
                     exit
                 }
             } else {
-                Write-Host "`nMasz najnowszą wersję." -ForegroundColor Green
+                Write-Host "`nMasz najnowsza wersje." -ForegroundColor Green
             }
         }
     } catch {
-        Write-Host "Błąd połączenia z serwerem aktualizacji." -ForegroundColor Red
+        Write-Host "Blad polaczenia z serwerem aktualizacji." -ForegroundColor Red
     }
     Pause-Script
 }
@@ -288,11 +287,11 @@ function Menu-Local {
         Write-Host "==============================================" -ForegroundColor Blue
         Write-Host "        [1] DIAGNOSTYKA LOKALNA I WI-FI       " -ForegroundColor Cyan
         Write-Host "==============================================" -ForegroundColor Blue
-        Write-Host "1. Interfejsy i stan połączeń"
+        Write-Host "1. Interfejsy i stan polaczen"
         Write-Host "2. Skaner sieci lokalnej (LAN)"
         Write-Host "3. Skaner Wi-Fi"
-        Write-Host "0. Wróć"
-        $sub = Read-Host "Wybierz opcję"
+        Write-Host "0. Wroc"
+        $sub = Read-Host "Wybierz opcje"
         switch ($sub) {
             '1' { Show-Interfaces }
             '2' { Scan-Lan }
@@ -306,13 +305,13 @@ function Menu-Conn {
     while ($true) {
         Clear-Host
         Write-Host "==============================================" -ForegroundColor Blue
-        Write-Host "       [2] TESTY POŁĄCZENIA I WYDAJNOŚCI      " -ForegroundColor Cyan
+        Write-Host "       [2] TESTY POLACZENIA I WYDAJNOSCI      " -ForegroundColor Cyan
         Write-Host "==============================================" -ForegroundColor Blue
         Write-Host "1. Podstawowa diagnostyka"
-        Write-Host "2. Monitor Stabilności (Ping)"
-        Write-Host "3. Pomiar prędkości (Speedtest)"
-        Write-Host "0. Wróć"
-        $sub = Read-Host "Wybierz opcję"
+        Write-Host "2. Monitor Stabilnosci (Ping)"
+        Write-Host "3. Pomiar predkosci (Speedtest)"
+        Write-Host "0. Wroc"
+        $sub = Read-Host "Wybierz opcje"
         switch ($sub) {
             '1' { Basic-Diag }
             '2' { Stability-Monitor }
@@ -326,13 +325,13 @@ function Menu-Web {
     while ($true) {
         Clear-Host
         Write-Host "==============================================" -ForegroundColor Blue
-        Write-Host "        [3] ANALIZA ZEWNĘTRZNA I WEBOWA       " -ForegroundColor Cyan
+        Write-Host "        [3] ANALIZA ZEWNETRZNA I WEBOWA       " -ForegroundColor Cyan
         Write-Host "==============================================" -ForegroundColor Blue
         Write-Host "1. Moje publiczne IP i Geo-lokalizacja"
-        Write-Host "2. Skaner Otwartych Portów TCP"
-        Write-Host "3. Weryfikator certyfikatów SSL/TLS"
-        Write-Host "0. Wróć"
-        $sub = Read-Host "Wybierz opcję"
+        Write-Host "2. Skaner Otwartych Portow TCP"
+        Write-Host "3. Weryfikator certyfikatow SSL/TLS"
+        Write-Host "0. Wroc"
+        $sub = Read-Host "Wybierz opcje"
         switch ($sub) {
             '1' { GeoIP-Scanner }
             '2' { Port-Scanner }
@@ -350,8 +349,8 @@ function Menu-Sys {
         Write-Host "==============================================" -ForegroundColor Blue
         Write-Host "1. Aktywne gniazda i procesy (Local Sockets)"
         Write-Host "2. Diagnostyka Windows Firewall"
-        Write-Host "0. Wróć"
-        $sub = Read-Host "Wybierz opcję"
+        Write-Host "0. Wroc"
+        $sub = Read-Host "Wybierz opcje"
         switch ($sub) {
             '1' { Local-Sockets }
             '2' { Firewall-Diag }
@@ -363,24 +362,23 @@ function Menu-Sys {
 # ==========================================
 # START PROGRAMU
 # ==========================================
-# Automatyczna zmiana rozmiaru i koloru tła okna dla lepszej czytelności (opcjonalnie)
 [console]::BackgroundColor = "Black"
 [console]::ForegroundColor = "Gray"
 
 while ($true) {
     Clear-Host
     Write-Host "==============================================" -ForegroundColor Blue
-    Write-Host "  NET-MASTER (WINDOWS) - DIAGNOSTYKA v$CURRENT_VERSION" -ForegroundColor Cyan
+    Write-Host ("  NET-MASTER (WINDOWS) - DIAGNOSTYKA v{0}" -f $CURRENT_VERSION) -ForegroundColor Cyan
     Write-Host "==============================================" -ForegroundColor Blue
     Write-Host "1. Diagnostyka Lokalna i Wi-Fi"
-    Write-Host "2. Testy Połączenia i Wydajności"
-    Write-Host "3. Analiza Zewnętrzna i Webowa"
+    Write-Host "2. Testy Polaczenia i Wydajnosci"
+    Write-Host "3. Analiza Zewnetrzna i Webowa"
     Write-Host "4. Diagnostyka Systemowa (Host)"
-    Write-Host "8. Sprawdź aktualizacje programu"
-    Write-Host "0. Zakończ program"
+    Write-Host "8. Sprawdz aktualizacje programu"
+    Write-Host "0. Zakoncz program"
     Write-Host "==============================================" -ForegroundColor Blue
     
-    $choice = Read-Host "Wybierz kategorię [0-4, 8]"
+    $choice = Read-Host "Wybierz kategorie [0-4, 8]"
     
     switch ($choice) {
         '1' { Menu-Local }
@@ -388,6 +386,6 @@ while ($true) {
         '3' { Menu-Web }
         '4' { Menu-Sys }
         '8' { Check-Update }
-        '0' { Clear-Host; Write-Host "Zakończono. Miłego dnia!"; exit }
+        '0' { Clear-Host; Write-Host "Zakonczono. Milego dnia!"; exit }
     }
 }
