@@ -37,7 +37,14 @@ Pozostałe zależności (takie jak `iproute2`, `dnsutils`, `network-manager`, `s
 
 Instalacja sprowadza się do wykonania jednego polecenia w terminalu. Skrypt pobierze główny program, umieści go w odpowiednim katalogu użytkownika (`~/.local/bin`) i utworzy systemowy skrót aplikacji.
 
-Uruchom poniższe polecenie w terminalu:
+Uruchom poniższe polecenie w terminalu linux:
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/Wojtekadamski/net-master/main/install.sh)"
+```
+
+
+Uruchom poniższe polecenie w terminalu windows PowerShell:
+```bash
+Invoke-Expression (Invoke-RestMethod -Uri "https://raw.githubusercontent.com/Wojtekadamski/net-master/main/install.ps1")
+```
