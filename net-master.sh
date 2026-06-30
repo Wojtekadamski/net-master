@@ -3,7 +3,7 @@
 # ==========================================
 # KONFIGURACJA WERSJI I REPOZYTORIUM
 # ==========================================
-CURRENT_VERSION="1.0.2"
+CURRENT_VERSION="1.0.3"
 
 GITHUB_USER="Wojtekadamski"
 GITHUB_REPO="net-master"
@@ -177,14 +177,14 @@ lan_scan() {
         echo -e "Wykryta podsieć: ${YELLOW}$SUBNET${NC}"
         echo "Skanowanie urządzeń podłączonych do Twojego routera (to potrwa kilka sekund)..."
         
-        # Ping sweep w tle za pomocą nmap, aby zasilić tablicę ARP (nie wymaga sudo)
+        # Ping sweep w tle za pomocą nmap
         nmap -T4 -sn "$SUBNET" > /dev/null 2>&1
         
         echo -e "\n${CYAN}IP ADDRESS${NC}      | ${CYAN}MAC ADDRESS${NC}       | ${CYAN}HOSTNAME (Nazwa urządzenia)${NC}"
         echo "------------------------------------------------------------------------"
         
-        # Odczyt wyników z cache systemu (ip neigh)
-        ip neigh show | grep -v FAILED | grep -E '^[0-9]' | awk '{print $1, $5}' | sort -t . -k 4,4n | while read -r IP MAC; do
+        # POPRAWKA: grep "lladdr" przepuszcza tylko żywe urządzenia, które zwróciły adres MAC
+        ip neigh show | grep "lladdr" | awk '{print $1, $5}' | sort -t . -k 4,4n | while read -r IP MAC; do
             # Próba tłumaczenia IP na nazwę (jeśli DNS/router ją udostępnia)
             HOSTNAME=$(dig +short -x "$IP" 2>/dev/null | sed 's/\.$//')
             if [ -z "$HOSTNAME" ]; then HOSTNAME="[Nieznany / Brak nazwy]"; fi
