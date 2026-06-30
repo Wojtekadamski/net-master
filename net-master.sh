@@ -1,7 +1,17 @@
 #!/bin/bash
 
 # ==========================================
-# KONFIGURACJA I KOLORY
+# KONFIGURACJA WERSJI I REPOZYTORIUM
+# ==========================================
+CURRENT_VERSION="1.0.0"
+
+# ZMIEŃ PONIŻSZE DANE NA SWOJE
+GITHUB_USER="Wojtekadamski"
+GITHUB_REPO="net-master"
+BRANCH="main"
+
+# ==========================================
+# KOLORY
 # ==========================================
 RED='\033[1;31m'
 GREEN='\033[1;32m'
@@ -14,11 +24,9 @@ NC='\033[0m'
 # AUTO-INSTALACJA ZALEŻNOŚCI
 # ==========================================
 check_dependencies() {
-    echo -e "${CYAN}Sprawdzanie wymaganych narzędzi...${NC}"
     local deps=("ip" "ping" "traceroute" "dig" "curl" "speedtest-cli" "nmcli" "awk")
     local packages_to_install=()
 
-    # Mapowanie komend na pakiety Debiana/Minta
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" >/dev/null 2>&1; then
             case $dep in
@@ -38,8 +46,6 @@ check_dependencies() {
         sudo apt-get install -y "${packages_to_install[@]}"
         echo -e "${GREEN}Zależności zainstalowane pomyślnie!${NC}\n"
         sleep 2
-    else
-        echo -e "${GREEN}Wszystkie zależności są zainstalowane.${NC}\n"
     fi
 }
 
@@ -60,7 +66,7 @@ show_interfaces() {
     echo -e "\n${YELLOW}2. Adresy IP interfejsów:${NC}"
     ip -brief address show | awk '{printf "%-15s %-15s %s\n", $1, $2, $3}'
     
-    echo -e "\nWciśnij [Enter], aby wrócić do menu..."
+    echo -e "\nWciśnij [Enter], aby wrócić..."
     read -r
 }
 
@@ -68,7 +74,6 @@ basic_diag() {
     clear
     echo -e "${CYAN}=== PODSTAWOWA DIAGNOSTYKA POŁĄCZENIA ===${NC}"
     
-    # Brama
     GATEWAY=$(ip route | grep default | awk '{print $3}' | head -n 1)
     if [ -n "$GATEWAY" ]; then
         echo -e "[+] Brama domyślna (Router): ${GREEN}$GATEWAY${NC}"
@@ -82,7 +87,6 @@ basic_diag() {
         echo -e "[-] ${RED}Brak bramy domyślnej! Problem z DHCP lub konfiguracją interfejsu.${NC}"
     fi
 
-    # DNS
     echo -e "\n[+] Testowanie serwerów DNS (rozwiązywanie nazwy google.com)..."
     DNS_TIME=$(dig google.com | grep "Query time" | awk '{print $4" "$5}')
     if [ -n "$DNS_TIME" ]; then
@@ -91,7 +95,6 @@ basic_diag() {
         echo -e "    ${RED}Błąd DNS! Nie można przetłumaczyć nazwy na adres IP.${NC}"
     fi
 
-    # Internet ping
     echo -e "\n[+] Test dostępu do Internetu (Ping do 8.8.8.8)..."
     PING_OUT=$(ping -c 4 -W 2 8.8.8.8 2>&1)
     LOSS=$(echo "$PING_OUT" | grep -oP '\d+(?=% packet loss)')
@@ -103,11 +106,10 @@ basic_diag() {
         echo -e "    ${YELLOW}Wykryto $LOSS% utraty pakietów! Łącze jest niestabilne.${NC}"
     fi
 
-    # Traceroute
     echo -e "\n[+] Szybkie śledzenie trasy do 8.8.8.8 (pierwsze 5 skoków):"
     traceroute -4 -m 5 8.8.8.8 2>/dev/null | awk 'NR>1 {print "    Skok " $1 ": " $2 " " $3 " " $4 " " $5}'
 
-    echo -e "\nWciśnij [Enter], aby wrócić do menu..."
+    echo -e "\nWciśnij [Enter], aby wrócić..."
     read -r
 }
 
@@ -150,10 +152,10 @@ wifi_diag() {
     
     echo -n "Zajęte kanały ${YELLOW}5 GHz${NC} w okolicy: "
     awk -F':' '$5 > 5000 {print $3}' "$TEMP_SCAN" | sort -nu | xargs | sed 's/ /, /g' | awk '{print "\033[1;31m" $0 "\033[0m"}'
-    echo -e "Rekomendacja dla 5 GHz: Wybierz w routerze dowolny kanał, którego ${RED}NIE MA${NC} na liście powyżej (np. z zakresu DFS 52-140)."
+    echo -e "Rekomendacja dla 5 GHz: Wybierz w routerze dowolny kanał, którego ${RED}NIE MA${NC} na liście powyżej."
 
     rm -f "$TEMP_SCAN"
-    echo -e "\nWciśnij [Enter], aby wrócić do menu..."
+    echo -e "\nWciśnij [Enter], aby wrócić..."
     read -r
 }
 
@@ -162,36 +164,101 @@ speed_test() {
     echo -e "${CYAN}=== POMIAR PRĘDKOŚCI ŁĄCZA ===${NC}"
     echo "Trwa łączenie z serwerami (to potrwa kilkadziesiąt sekund)..."
     speedtest-cli --simple
-    echo -e "\nWciśnij [Enter], aby wrócić do menu..."
+    echo -e "\nWciśnij [Enter], aby wrócić..."
     read -r
+}
+
+check_update() {
+    clear
+    echo -e "${CYAN}=== AKTUALIZACJA PROGRAMU ===${NC}"
+    echo -e "Obecna wersja programu: ${YELLOW}$CURRENT_VERSION${NC}"
+    echo "Sprawdzanie najnowszej wersji w repozytorium GitHub..."
+    
+    # -m 3 oznacza timeout 3 sekundy. Nie zawieszamy programu, jeśli nie ma neta!
+    RAW_URL="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$BRANCH/net-master.sh"
+    REMOTE_SCRIPT=$(curl -fsSL -m 3 "$RAW_URL" 2>/dev/null)
+    
+    if [ -z "$REMOTE_SCRIPT" ]; then
+        echo -e "${RED}Błąd: Nie można połączyć się z serwerem aktualizacji. Sprawdź połączenie.${NC}"
+        echo -e "\nWciśnij [Enter], aby wrócić..."
+        read -r
+        return
+    fi
+
+    # Ekstrakcja wersji z pobranego kodu
+    REMOTE_VERSION=$(echo "$REMOTE_SCRIPT" | grep -oP '^CURRENT_VERSION="\K[^"]+')
+
+    if [ -z "$REMOTE_VERSION" ]; then
+         echo -e "${RED}Błąd: Nie udało się zweryfikować wersji na serwerze.${NC}"
+         sleep 2
+         return
+    fi
+
+    if [ "$CURRENT_VERSION" != "$REMOTE_VERSION" ]; then
+        echo -e "${GREEN}Znaleziono nową wersję!${NC}"
+        echo -e "Nowa wersja do pobrania: ${GREEN}$REMOTE_VERSION${NC}\n"
+
+        CHANGELOG_URL="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$BRANCH/changelog.txt"
+        CHANGELOG=$(curl -fsSL -m 3 "$CHANGELOG_URL" 2>/dev/null)
+        
+        if [ -n "$CHANGELOG" ]; then
+            echo -e "${CYAN}--- CO NOWEGO? (CHANGELOG) ---${NC}"
+            echo -e "$CHANGELOG"
+            echo -e "${CYAN}------------------------------${NC}\n"
+        fi
+
+        read -r -p "Czy chcesz zainstalować aktualizację teraz? [T/n]: " update_choice
+        if [[ "$update_choice" =~ ^[TtYy]$ ]] || [[ -z "$update_choice" ]]; then
+            echo "Instalowanie..."
+            
+            # Bezpieczne nadpisanie aktualnie uruchomionego pliku
+            tmp_file=$(mktemp)
+            echo "$REMOTE_SCRIPT" > "$tmp_file"
+            cat "$tmp_file" > "$0"
+            rm -f "$tmp_file"
+            chmod +x "$0"
+            
+            echo -e "${GREEN}Zaktualizowano pomyślnie! Uruchamiam ponownie...${NC}"
+            sleep 2
+            exec "$0" "$@" # Gorący restart skryptu
+        else
+            echo "Anulowano aktualizację."
+            sleep 1
+        fi
+    else
+        echo -e "${GREEN}Posiadasz najnowszą dostępną wersję programu.${NC}"
+        echo -e "\nWciśnij [Enter], aby wrócić..."
+        read -r
+    fi
 }
 
 # ==========================================
 # GŁÓWNA PĘTLA PROGRAMU (MENU)
 # ==========================================
 
-# Uruchomienie instalacji/sprawdzenia pakietów
 check_dependencies
 
 while true; do
     clear
     echo -e "${BLUE}==============================================${NC}"
-    echo -e "${CYAN}        NET-MASTER - DIAGNOSTYKA SIECI        ${NC}"
+    echo -e "${CYAN}     NET-MASTER - DIAGNOSTYKA SIECI (v$CURRENT_VERSION)    ${NC}"
     echo -e "${BLUE}==============================================${NC}"
     echo "1. Pokaż interfejsy sieciowe i stan połączenia"
     echo "2. Pełna diagnostyka (DHCP, Brama, DNS, Traceroute)"
     echo "3. Skaner Wi-Fi i optymalizacja kanałów"
     echo "4. Pomiar prędkości łącza (Speedtest)"
+    echo "5. Sprawdź aktualizacje (Update)"
     echo "0. Zakończ program"
     echo -e "${BLUE}==============================================${NC}"
     
-    read -r -p "Wybierz opcję [0-4]: " choice
+    read -r -p "Wybierz opcję [0-5]: " choice
     
     case $choice in
         1) show_interfaces ;;
         2) basic_diag ;;
         3) wifi_diag ;;
         4) speed_test ;;
+        5) check_update ;;
         0) echo "Zakończono."; exit 0 ;;
         *) echo -e "${RED}Nieprawidłowy wybór!${NC}"; sleep 1 ;;
     esac
