@@ -1,7 +1,7 @@
 # ==========================================
 # NET-MASTER WINDOWS EDITION
 # ==========================================
-$CURRENT_VERSION = "1.0.0"
+$CURRENT_VERSION = "1.0.1"
 $GITHUB_USER = "Wojtekadamski"
 $GITHUB_REPO = "net-master"
 $BRANCH = "main"

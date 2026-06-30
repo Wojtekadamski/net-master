@@ -1,4 +1,4 @@
-Wersja 1.0.0:
+Wersja 1.0.1:
 - Pierwsze wydanie Net-Master dla systemu Windows.
 - Przepisano skrypt na PowerShell.
 - Usunięto zależności od zewnętrznych pakietów linuksowych na rzecz natywnych modułów .NET.
