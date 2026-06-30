@@ -1,2 +1,6 @@
-Wersja 1.0.1 (Ostatnia aktualizacja):
+Wersja 1.0.2 (Ostatnia aktualizacja):
+- Dodano skaner sieci lokalnej (LAN) oraz profiler TTFB dla zapytań HTTP.
+
+Wersja 1.0.1 :
 - Naprawiono błąd parsowania adresów MAC w skanerze Wi-Fi
+
