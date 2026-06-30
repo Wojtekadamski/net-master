@@ -1,4 +1,10 @@
-Wersja 1.3.0 (Najnowsza aktualizacja):
+Wersja 1.4.0 (Najnowsza aktualizacja):
+- Wprowadzono 4. kategorię w menu głównym: "Diagnostyka Systemowa (Host)".
+- Dodano "Monitor przepustowości na żywo" - bezwzględny podgląd pobierania i wysyłania (MB/s / KB/s) czytający dane prosto z kernela.
+- Dodano "Aktywne gniazda i procesy (Local Sockets)" - narzędzie do wykrywania PID-ów i usług (np. MySQL, Node.js) blokujących lokalne porty.
+- Dodano moduł "Diagnostyka Zapory Sieciowej" - weryfikuje status UFW i drukuje główne reguły iptables.
+
+Wersja 1.3.0 :
 - Reorganizacja interfejsu: wprowadzono podział na podmenu tematyczne dla lepszej czytelności.
 - Dodano weryfikator certyfikatów SSL/TLS (sprawdzanie daty wygaśnięcia i wystawcy).
 - Dodano benchmark publicznych serwerów DNS (porównanie czasów odpowiedzi).

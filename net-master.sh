@@ -3,7 +3,7 @@
 # ==========================================
 # KONFIGURACJA WERSJI I REPOZYTORIUM
 # ==========================================
-CURRENT_VERSION="1.3.0"
+CURRENT_VERSION="1.4.0"
 
 GITHUB_USER="Wojtekadamski"
 GITHUB_REPO="net-master"
@@ -23,17 +23,18 @@ NC='\033[0m'
 # AUTO-INSTALACJA ZALEŻNOŚCI
 # ==========================================
 check_dependencies() {
-    local deps=("ip" "ping" "traceroute" "dig" "curl" "speedtest-cli" "nmcli" "awk" "nmap" "nc" "openssl")
+    local deps=("ip" "ping" "traceroute" "dig" "curl" "speedtest-cli" "nmcli" "awk" "nmap" "nc" "openssl" "ss" "iptables")
     local packages_to_install=()
 
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" >/dev/null 2>&1; then
             case $dep in
-                "ip") packages_to_install+=("iproute2") ;;
+                "ip"|"ss") packages_to_install+=("iproute2") ;;
                 "ping") packages_to_install+=("iputils-ping") ;;
                 "dig") packages_to_install+=("dnsutils") ;;
                 "nmcli") packages_to_install+=("network-manager") ;;
                 "nc") packages_to_install+=("netcat-openbsd") ;;
+                "iptables") packages_to_install+=("iptables") ;;
                 *) packages_to_install+=("$dep") ;;
             esac
         fi
@@ -147,31 +148,19 @@ basic_diag() {
     if [ -n "$GATEWAY" ]; then
         echo -e "[+] Brama domyślna (Router): ${GREEN}$GATEWAY${NC}"
         echo -n "    Testowanie routera (Ping)... "
-        if ping -c 3 -W 2 "$GATEWAY" > /dev/null 2>&1; then
-            echo -e "${GREEN}Sukces${NC}"
-        else
-            echo -e "${RED}Brak odpowiedzi${NC}"
-        fi
+        if ping -c 3 -W 2 "$GATEWAY" > /dev/null 2>&1; then echo -e "${GREEN}Sukces${NC}"; else echo -e "${RED}Brak odpowiedzi${NC}"; fi
     else
         echo -e "[-] ${RED}Brak bramy domyślnej! Problem z DHCP lub konfiguracją interfejsu.${NC}"
     fi
     echo -e "\n[+] Testowanie serwerów DNS (rozwiązywanie nazwy google.com)..."
     DNS_TIME=$(dig google.com | grep "Query time" | awk '{print $4" "$5}')
-    if [ -n "$DNS_TIME" ]; then
-        echo -e "    ${GREEN}DNS działa poprawnie${NC} (Czas odpowiedzi: $DNS_TIME)"
-    else
-        echo -e "    ${RED}Błąd DNS! Nie można przetłumaczyć nazwy na adres IP.${NC}"
-    fi
+    if [ -n "$DNS_TIME" ]; then echo -e "    ${GREEN}DNS działa poprawnie${NC} (Czas odpowiedzi: $DNS_TIME)"; else echo -e "    ${RED}Błąd DNS!${NC}"; fi
     echo -e "\n[+] Test dostępu do Internetu (Ping do 8.8.8.8)..."
     PING_OUT=$(ping -c 4 -W 2 8.8.8.8 2>&1)
     LOSS=$(echo "$PING_OUT" | grep -oP '\d+(?=% packet loss)')
-    if [ "$LOSS" == "0" ]; then
-        echo -e "    ${GREEN}0% utraty pakietów. Internet działa.${NC}"
-    elif [ -z "$LOSS" ]; then
-        echo -e "    ${RED}Brak dostępu do internetu (Host nieosiągalny).${NC}"
-    else
-        echo -e "    ${YELLOW}Wykryto $LOSS% utraty pakietów! Łącze jest niestabilne.${NC}"
-    fi
+    if [ "$LOSS" == "0" ]; then echo -e "    ${GREEN}0% utraty pakietów. Internet działa.${NC}"
+    elif [ -z "$LOSS" ]; then echo -e "    ${RED}Brak dostępu do internetu.${NC}"
+    else echo -e "    ${YELLOW}Wykryto $LOSS% utraty pakietów! Łącze jest niestabilne.${NC}"; fi
     echo -e "\n[+] Szybkie śledzenie trasy do 8.8.8.8 (pierwsze 5 skoków):"
     traceroute -4 -m 5 8.8.8.8 2>/dev/null | awk 'NR>1 {print "    Skok " $1 ": " $2 " " $3 " " $4 " " $5}'
     pause
@@ -195,7 +184,7 @@ stability_monitor() {
         echo -e "Jitter (Odchylenie):    ${YELLOW}${MDEV} ms${NC}\n"
         echo -e "${CYAN}--- WERDYKT ---${NC}"
         IS_HIGH_JITTER=$(awk -v m="$MDEV" 'BEGIN{if(m>10.0) print 1; else print 0}')
-        if [ "$LOSS" -gt 0 ]; then echo -e "${RED}[!] Wykryto utratę pakietów.${NC} Możliwy problem po stronie operatora lub Wi-Fi."
+        if [ "$LOSS" -gt 0 ]; then echo -e "${RED}[!] Wykryto utratę pakietów.${NC} Możliwy problem po stronie operatora."
         elif [ "$IS_HIGH_JITTER" -eq 1 ]; then echo -e "${YELLOW}[!] Wysoki Jitter ($MDEV ms).${NC} Opóźnienia skaczą (lagi)."
         else echo -e "${GREEN}[+] Połączenie jest wzorowe.${NC} Sieć działa stabilnie."
         fi
@@ -225,10 +214,7 @@ geoip_scanner() {
     clear
     echo -e "${CYAN}=== PUBLICZNE IP I GEO-LOKALIZACJA ===${NC}"
     echo "Pobieranie danych z ip-api.com..."
-    
-    # curl na prosty endpoint tekstowy, -s wycisza pasek postępu
     INFO=$(curl -s "http://ip-api.com/line/")
-    
     if [[ "$INFO" == *"success"* ]]; then
         mapfile -t GEO <<< "$INFO"
         echo -e "\n${YELLOW}Twoje Publiczne IP:${NC} \033[1;32m${GEO[12]}\033[0m"
@@ -237,7 +223,7 @@ geoip_scanner() {
         echo -e "Dostawca ISP:       ${GREEN}${GEO[9]}${NC}"
         echo -e "Organizacja (ASN):  ${CYAN}${GEO[11]}${NC}"
     else
-        echo -e "${RED}Błąd: Nie udało się pobrać informacji. Sprawdź połączenie z internetem lub zaporę.${NC}"
+        echo -e "${RED}Błąd połączenia.${NC}"
     fi
     pause
 }
@@ -253,8 +239,7 @@ http_profiler() {
     FORMAT="%{time_namelookup}\n%{time_connect}\n%{time_appconnect}\n%{time_pretransfer}\n%{time_starttransfer}\n%{time_total}\n%{http_code}"
     RESULT=$(curl -o /dev/null -s -w "$FORMAT" "$TARGET_URL")
     
-    if [ -z "$RESULT" ]; then
-        echo -e "${RED}Błąd połączenia.${NC}"
+    if [ -z "$RESULT" ]; then echo -e "${RED}Błąd połączenia.${NC}"
     else
         mapfile -t METRICS <<< "$RESULT"
         DNS=$(echo "${METRICS[0]}" | awk '{printf "%.0f", $1 * 1000}')
@@ -264,8 +249,7 @@ http_profiler() {
         TOTAL=$(echo "${METRICS[5]}" | awk '{printf "%.0f", $1 * 1000}')
         CODE=${METRICS[6]}
         
-        if [ "$CODE" == "000" ]; then
-             echo -e "${RED}[-] Host nieosiągalny.${NC}"
+        if [ "$CODE" == "000" ]; then echo -e "${RED}[-] Host nieosiągalny.${NC}"
         else
             echo -e "Kod odpowiedzi HTTP: \033[1;32m$CODE\033[0m\n"
             echo -e "Czas rozwiązywania DNS:  ${CYAN}${DNS} ms${NC}"
@@ -285,7 +269,6 @@ port_scanner() {
     read -r -p "Podaj adres IP / domenę (domyślnie localhost): " TARGET
     TARGET=${TARGET:-127.0.0.1}
     echo -e "\nSkanowanie portów dla hosta: ${YELLOW}$TARGET${NC}...\n"
-    
     PORTS=(21 22 25 53 80 110 143 443 3306 3389 8080)
     printf "${CYAN}%-6s | %-15s | %s${NC}\n" "PORT" "USŁUGA" "STATUS"
     echo "----------------------------------------------------"
@@ -304,39 +287,22 @@ port_scanner() {
 ssl_verifier() {
     clear
     echo -e "${CYAN}=== WERYFIKATOR CERTYFIKATÓW SSL/TLS ===${NC}"
-    read -r -p "Podaj domenę (bez https://, np. google.com): " DOMAIN
-    if [ -z "$DOMAIN" ]; then
-        echo -e "${RED}Nie podano domeny.${NC}"; pause; return
-    fi
-    # Czyszczenie wejścia, jeśli ktoś jednak wklei z https
+    read -r -p "Podaj domenę (bez https://): " DOMAIN
+    if [ -z "$DOMAIN" ]; then echo -e "${RED}Nie podano domeny.${NC}"; pause; return; fi
     DOMAIN=$(echo "$DOMAIN" | sed -e 's|^[^/]*//||' -e 's|/.*$||')
-
     echo -e "\nSprawdzanie certyfikatu dla: ${YELLOW}$DOMAIN${NC}...\n"
-    
-    # Pobieranie surowych danych certyfikatu w ułamek sekundy
     CERT_DATA=$(echo | openssl s_client -servername "$DOMAIN" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 -noout -dates -issuer -subject 2>/dev/null)
-    
     if [ -z "$CERT_DATA" ]; then
         echo -e "${RED}Błąd: Nie udało się pobrać certyfikatu z portu 443.${NC}"
-        echo "Upewnij się, że domena obsługuje HTTPS."
     else
         ISSUER=$(echo "$CERT_DATA" | grep "issuer=" | sed 's/.*O = //;s/, .*//')
         EXP_DATE=$(echo "$CERT_DATA" | grep "notAfter=" | cut -d= -f2)
-        
-        # Matematyka dat w bashu (zamiana na sekundy epoch i obliczenie różnicy)
-        EXP_SEC=$(date -d "$EXP_DATE" +%s)
-        NOW_SEC=$(date +%s)
-        DIFF_DAYS=$(( (EXP_SEC - NOW_SEC) / 86400 ))
-
+        EXP_SEC=$(date -d "$EXP_DATE" +%s); NOW_SEC=$(date +%s); DIFF_DAYS=$(( (EXP_SEC - NOW_SEC) / 86400 ))
         echo -e "Wystawca certyfikatu:   ${CYAN}$ISSUER${NC}"
         echo -e "Data wygaśnięcia:       ${CYAN}$EXP_DATE${NC}"
-        
-        if [ "$DIFF_DAYS" -lt 0 ]; then
-            echo -e "Status ważności:        ${RED}WYGASŁ $((DIFF_DAYS * -1)) dni temu!${NC} ❌"
-        elif [ "$DIFF_DAYS" -le 14 ]; then
-            echo -e "Status ważności:        ${YELLOW}Wygasa za $DIFF_DAYS dni! (Wymaga odnowienia)${NC} ⚠️"
-        else
-            echo -e "Status ważności:        ${GREEN}Ważny jeszcze przez $DIFF_DAYS dni.${NC} ✅"
+        if [ "$DIFF_DAYS" -lt 0 ]; then echo -e "Status ważności:        ${RED}WYGASŁ $((DIFF_DAYS * -1)) dni temu!${NC} ❌"
+        elif [ "$DIFF_DAYS" -le 14 ]; then echo -e "Status ważności:        ${YELLOW}Wygasa za $DIFF_DAYS dni!${NC} ⚠️"
+        else echo -e "Status ważności:        ${GREEN}Ważny jeszcze przez $DIFF_DAYS dni.${NC} ✅"
         fi
     fi
     pause
@@ -345,43 +311,109 @@ ssl_verifier() {
 dns_benchmark() {
     clear
     echo -e "${CYAN}=== BENCHMARK SERWERÓW DNS ===${NC}"
-    echo "Sprawdzanie, który publiczny serwer najszybciej rozwiązuje nazwy domen..."
     echo -e "Testowana domena: ${YELLOW}youtube.com${NC}\n"
-    
-    # Lista popularnych resolverów do testu
-    SERVERS=(
-        "8.8.8.8:Google"
-        "1.1.1.1:Cloudflare"
-        "9.9.9.9:Quad9"
-        "208.67.222.222:OpenDNS"
-    )
-    
+    SERVERS=("8.8.8.8:Google" "1.1.1.1:Cloudflare" "9.9.9.9:Quad9" "208.67.222.222:OpenDNS")
     printf "${CYAN}%-20s | %-16s | %s${NC}\n" "DOSTAWCA DNS" "ADRES IP" "CZAS ODPOWIEDZI"
     echo "------------------------------------------------------------"
-    
-    # Pętla testująca
     for ENTRY in "${SERVERS[@]}"; do
-        IP="${ENTRY%%:*}"
-        NAME="${ENTRY##*:}"
-        
-        # Używamy dig'a kierując zapytanie wprost na dany serwer (@IP)
+        IP="${ENTRY%%:*}"; NAME="${ENTRY##*:}"
         TIME=$(dig @$IP youtube.com | grep "Query time" | awk '{print $4}')
-        
         if [ -n "$TIME" ]; then
-            # Kolorowanie czasu. Poniżej 20ms na zielono
-            if [ "$TIME" -lt 20 ]; then
-                printf "%-20s | %-16s | \033[1;32m%s ms\033[0m\n" "$NAME" "$IP" "$TIME"
-            elif [ "$TIME" -lt 50 ]; then
-                printf "%-20s | %-16s | \033[1;33m%s ms\033[0m\n" "$NAME" "$IP" "$TIME"
-            else
-                printf "%-20s | %-16s | \033[1;31m%s ms\033[0m\n" "$NAME" "$IP" "$TIME"
-            fi
+            if [ "$TIME" -lt 20 ]; then printf "%-20s | %-16s | \033[1;32m%s ms\033[0m\n" "$NAME" "$IP" "$TIME"
+            elif [ "$TIME" -lt 50 ]; then printf "%-20s | %-16s | \033[1;33m%s ms\033[0m\n" "$NAME" "$IP" "$TIME"
+            else printf "%-20s | %-16s | \033[1;31m%s ms\033[0m\n" "$NAME" "$IP" "$TIME"; fi
         else
              printf "%-20s | %-16s | \033[1;31mBrak odpowiedzi\033[0m\n" "$NAME" "$IP"
         fi
     done
+    pause
+}
+
+# ==========================================
+# MODUŁY: DIAGNOSTYKA SYSTEMOWA (HOST)
+# ==========================================
+
+live_bandwidth() {
+    clear
+    echo -e "${CYAN}=== MONITOR PRZEPUSTOWOŚCI NA ŻYWO ===${NC}"
+    IFACE=$(ip route | grep default | awk '{print $5}' | head -n 1)
+    if [ -z "$IFACE" ]; then
+        echo -e "${RED}Błąd: Nie wykryto aktywnego interfejsu sieciowego.${NC}"; pause; return
+    fi
+
+    echo -e "Monitorowanie interfejsu: ${YELLOW}$IFACE${NC}"
+    echo -e "Naciśnij klawisz ${RED}'q'${NC}, aby zakończyć.\n"
+
+    RX1=$(cat "/sys/class/net/$IFACE/statistics/rx_bytes" 2>/dev/null || echo 0)
+    TX1=$(cat "/sys/class/net/$IFACE/statistics/tx_bytes" 2>/dev/null || echo 0)
+
+    # Zmiana kursora na niewidoczny
+    tput civis 
+
+    while true; do
+        read -t 1 -n 1 key
+        if [[ $key == "q" || $key == "Q" ]]; then
+            echo -e "\n\nZakończono monitorowanie."
+            break
+        fi
+
+        RX2=$(cat "/sys/class/net/$IFACE/statistics/rx_bytes" 2>/dev/null || echo 0)
+        TX2=$(cat "/sys/class/net/$IFACE/statistics/tx_bytes" 2>/dev/null || echo 0)
+
+        RX_RATE=$(( (RX2 - RX1) / 1024 ))
+        TX_RATE=$(( (TX2 - TX1) / 1024 ))
+
+        [ "$RX_RATE" -gt 1024 ] && RX_COLOR=$GREEN || RX_COLOR=$CYAN
+        [ "$TX_RATE" -gt 1024 ] && TX_COLOR=$GREEN || TX_COLOR=$CYAN
+
+        if [ "$RX_RATE" -gt 1024 ]; then RX_PRINT=$(awk -v rx="$RX_RATE" 'BEGIN { printf "%6.2f MB/s", rx/1024 }')
+        else RX_PRINT=$(printf "%6s KB/s" "$RX_RATE"); fi
+
+        if [ "$TX_RATE" -gt 1024 ]; then TX_PRINT=$(awk -v tx="$TX_RATE" 'BEGIN { printf "%6.2f MB/s", tx/1024 }')
+        else TX_PRINT=$(printf "%6s KB/s" "$TX_RATE"); fi
+
+        # Wypisywanie z carriage return, by odświeżać jedną linię (kod \033[2K czyści linię)
+        echo -ne "\033[2K\r${CYAN}↓ Pobieranie:${NC} ${RX_COLOR}${RX_PRINT}${NC}   |   ${CYAN}↑ Wysyłanie:${NC} ${TX_COLOR}${TX_PRINT}${NC}"
+
+        RX1=$RX2
+        TX1=$TX2
+    done
     
-    echo -e "\n${YELLOW}Wskazówka:${NC} Zmiana DNS w routerze na serwer z najmniejszym czasem poprawi responsywność wczytywania nowych stron."
+    # Przywrócenie kursora
+    tput cnorm
+    pause
+}
+
+local_sockets() {
+    clear
+    echo -e "${CYAN}=== AKTYWNE GNIAZDA I PROCESY (LISTEN) ===${NC}"
+    echo "Narzędzie wykrywa lokalne usługi blokujące i nasłuchujące na portach."
+    echo -e "${YELLOW}Wymagane uprawnienia (sudo) do weryfikacji numerów PID i nazw procesów...${NC}\n"
+    
+    sudo ss -tulnp | awk '
+    NR==1 {print "\033[1;36m" $0 "\033[0m"}
+    NR>1 {print $0}'
+    
+    pause
+}
+
+firewall_diag() {
+    clear
+    echo -e "${CYAN}=== DIAGNOSTYKA ZAPORY SIECIOWEJ (FIREWALL) ===${NC}"
+    echo -e "${YELLOW}Wymagane uprawnienia administratora (sudo)...${NC}\n"
+
+    # Sprawdzenie UFW
+    if command -v ufw >/dev/null 2>&1; then
+        echo -e "${CYAN}[1] Status UFW (Uncomplicated Firewall):${NC}"
+        sudo ufw status verbose
+    else
+        echo -e "${YELLOW}UFW nie jest zainstalowany w tym systemie.${NC}"
+    fi
+
+    echo -e "\n${CYAN}[2] Podstawowe reguły IPTABLES (Filtrowanie IPv4):${NC}"
+    sudo iptables -L -n | head -n 15
+    echo -e "${YELLOW}... (Wyświetlono tylko początek łańcucha reguł dla czytelności) ...${NC}"
+
     pause
 }
 
@@ -497,6 +529,28 @@ menu_web() {
     done
 }
 
+menu_sys() {
+    while true; do
+        clear
+        echo -e "${BLUE}==============================================${NC}"
+        echo -e "${CYAN}        [4] DIAGNOSTYKA SYSTEMOWA (HOST)      ${NC}"
+        echo -e "${BLUE}==============================================${NC}"
+        echo "1. Monitor przepustowości na żywo"
+        echo "2. Aktywne gniazda i procesy (Local Sockets)"
+        echo "3. Diagnostyka Zapory Sieciowej (Firewall)"
+        echo "0. Wróć do menu głównego"
+        echo -e "${BLUE}==============================================${NC}"
+        read -r -p "Wybierz opcję [0-3]: " sub
+        case $sub in
+            1) live_bandwidth ;;
+            2) local_sockets ;;
+            3) firewall_diag ;;
+            0) return ;;
+            *) echo -e "${RED}Zły wybór!${NC}"; sleep 1 ;;
+        esac
+    done
+}
+
 # START PROGRAMU
 check_dependencies
 
@@ -508,16 +562,18 @@ while true; do
     echo "1. Diagnostyka Lokalna i Wi-Fi"
     echo "2. Testy Połączenia i Wydajności"
     echo "3. Analiza Zewnętrzna i Webowa"
+    echo "4. Diagnostyka Systemowa (Host)"
     echo "8. Sprawdź aktualizacje programu"
     echo "0. Zakończ program"
     echo -e "${BLUE}==============================================${NC}"
     
-    read -r -p "Wybierz kategorię [0-3, 8]: " choice
+    read -r -p "Wybierz kategorię [0-4, 8]: " choice
     
     case $choice in
         1) menu_local ;;
         2) menu_conn ;;
         3) menu_web ;;
+        4) menu_sys ;;
         8) check_update ;;
         0) clear; echo "Zakończono pracę Net-Master. Miłego dnia!"; exit 0 ;;
         *) echo -e "${RED}Nieprawidłowy wybór!${NC}"; sleep 1 ;;

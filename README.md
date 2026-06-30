@@ -23,6 +23,11 @@ Narzędzie zostało podzielone na trzy główne moduły:
 * **Profiler zapytań HTTP:** Analiza cyklu życia zapytania (czas rozwiązywania DNS, nawiązywania połączenia TCP, negocjacji TLS oraz TTFB).
 * **Weryfikator certyfikatów SSL/TLS:** Sprawdzanie poprawności, wystawcy oraz dokładnej daty wygaśnięcia certyfikatu dla podanej domeny.
 
+**4. Diagnostyka Systemowa (Host)**
+* **Monitor przepustowości na żywo:** Niewymagające zewnętrznych pakietów narzędzie, które pobiera prosto z jądra Linuksa dane o aktualnym transferze (Pobieranie/Wysyłanie) z odświeżaniem co 1 sekundę.
+* **Aktywne gniazda i procesy:** Lista usług i aplikacji (wraz z numerami PID) nasłuchujących na lokalnych portach Twojej maszyny. 
+* **Diagnostyka Zapory Sieciowej (Firewall):** Automatyczna weryfikacja statusu UFW oraz dump podstawowych reguł łańcucha z demona `iptables`.
+
 ## Wymagania
 
 Narzędzie wymaga do rozpoczęcia instalacji jedynie pakietu `curl`. 
