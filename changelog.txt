@@ -1,5 +1,7 @@
-Wersja 1.1.0: 
-- Dodano skaner portów TCP, monitor Jittera oraz opcję twardego resetu sieci"
-
-Wersja 1.0.3:
-- uporządkowano wyświetlanie urządzeń <w sieci LAN
+Wersja 1.3.0 (Najnowsza aktualizacja):
+- Reorganizacja interfejsu: wprowadzono podział na podmenu tematyczne dla lepszej czytelności.
+- Dodano weryfikator certyfikatów SSL/TLS (sprawdzanie daty wygaśnięcia i wystawcy).
+- Dodano benchmark publicznych serwerów DNS (porównanie czasów odpowiedzi).
+- Dodano skaner publicznego adresu IP oraz geo-lokalizacji (GeoIP).
+- Dodano 'openssl' do listy automatycznie instalowanych zależności.
+- Zoptymalizowano kod poprzez wprowadzenie globalnej funkcji wstrzymującej.
