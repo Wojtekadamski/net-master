@@ -22,4 +22,4 @@ Instalacja sprowadza się do wykonania jednego polecenia w terminalu. Skrypt pob
 Uruchom poniższe polecenie w terminalu:
 
 ```bash
-bash -c "$(curl -fsSL [https://raw.githubusercontent.com/Wojtekadamski/net-master/main/install.sh](https://raw.githubusercontent.com/Wojtekadamski/net-master/main/install.sh))"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Wojtekadamski/net-master/main/install.sh)"
